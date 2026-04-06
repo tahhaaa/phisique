@@ -1,0 +1,41 @@
+<svg width="720" height="220" viewBox="0 0 720 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="betaFill" x1="102" y1="24" x2="102" y2="192" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F3FEFF"/>
+      <stop offset="0.48" stop-color="#AEEBFA"/>
+      <stop offset="1" stop-color="#70C6E7"/>
+    </linearGradient>
+    <linearGradient id="orbitFill" x1="28" y1="99" x2="176" y2="99" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7BDCF3"/>
+      <stop offset="1" stop-color="#D5FCFF"/>
+    </linearGradient>
+    <linearGradient id="arrowFill" x1="99" y1="48" x2="176" y2="124" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D7FBFF"/>
+      <stop offset="1" stop-color="#6EC8EC"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="210" height="210" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#041120" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)" transform="translate(12 10)">
+    <path d="M52 25H99C137 25 164 45 164 78C164 103 148 120 127 126C151 132 170 150 170 177C170 215 138 195 103 195H52V166H88C112 166 125 155 125 137C125 120 112 109 90 109H52V80H85C109 80 120 69 120 53C120 36 107 25 86 25H52Z" fill="url(#betaFill)"/>
+    <path d="M18 116C43 84 80 69 117 69C148 69 172 79 188 98L175 116C159 101 139 95 115 95C86 95 57 105 33 127L18 116Z" fill="url(#orbitFill)"/>
+    <path d="M29 129C55 147 85 156 116 156C140 156 161 149 178 136L188 150C170 169 143 181 113 181C75 181 40 169 16 145L29 129Z" fill="url(#orbitFill)"/>
+    <path d="M78 41C92 58 99 76 99 96C99 118 90 139 73 156L57 145C70 131 78 114 78 96C78 80 73 66 62 55L78 41Z" fill="#A9EEFB"/>
+    <path d="M95 28L109 37C96 59 99 86 118 105C136 124 163 130 188 121L194 138C162 151 127 143 103 119C78 95 74 58 95 28Z" fill="#D6FCFF"/>
+    <circle cx="95" cy="95" r="16" fill="#F7FFFF"/>
+    <circle cx="62" cy="57" r="8" fill="#C9F8FF"/>
+    <circle cx="37" cy="110" r="7" fill="#97E7F7"/>
+    <path d="M154 34L162 51L179 59L162 67L154 84L146 67L129 59L146 51L154 34Z" fill="#D9FCFF"/>
+    <path d="M107 146H136L136 171C136 176 132 180 127 180H116C111 180 107 176 107 171V146Z" fill="#0B2440"/>
+    <path d="M111 150L121.5 159L132 150V171H111V150Z" fill="#E8FEFF"/>
+    <path d="M100 99L166 34L176 44L141 79H165V93H127L110 110L100 99Z" fill="url(#arrowFill)"/>
+  </g>
+
+  <g transform="translate(240 34)">
+    <text x="0" y="54" fill="#F4FCFF" font-family="Space Grotesk, Manrope, sans-serif" font-size="64" font-weight="700">βeta</text>
+    <text x="2" y="101" fill="#8EDAF0" font-family="Manrope, sans-serif" font-size="26" font-weight="600">Physique</text>
+    <text x="2" y="145" fill="#A5B8CA" font-family="Manrope, sans-serif" font-size="20" font-weight="500">Programme spécial 2ème bac</text>
+  </g>
+</svg>

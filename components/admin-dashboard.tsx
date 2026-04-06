@@ -1,0 +1,687 @@
+"use client";
+
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { BellRing, Check, ExternalLink, LoaderCircle, LogOut, MapPinned, Pencil, Search, Settings2, Trash2, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { SCHOOL_LEVELS } from "@/lib/constants";
+import type { DashboardStats, Reservation, SiteSettings } from "@/lib/types";
+import { formatCurrency, formatDate, getCoursePriceLabel, normalizeMoroccanPhone } from "@/lib/utils";
+
+type AdminDashboardProps = {
+  initialReservations: Reservation[];
+  initialStats: DashboardStats;
+  initialSettings: SiteSettings;
+};
+
+type EditableReservation = Omit<Reservation, "id" | "createdAt" | "updatedAt" | "confirmedAt">;
+
+export function AdminDashboard({
+  initialReservations,
+  initialStats,
+  initialSettings,
+}: AdminDashboardProps) {
+  const [reservations, setReservations] = useState(initialReservations);
+  const [stats, setStats] = useState(initialStats);
+  const [settings, setSettings] = useState(initialSettings);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<EditableReservation | null>(null);
+  const [search, setSearch] = useState("");
+  const [groupFilter, setGroupFilter] = useState<"all" | Reservation["level"]>("all");
+  const [isSavingReservation, startSavingReservation] = useTransition();
+
+  const latestId = useMemo(() => reservations[0]?.id ?? 0, [reservations]);
+  const enabledFormats = useMemo(() => settings.courseFormats.filter((format) => format.enabled), [settings.courseFormats]);
+  const filteredReservations = useMemo(() => {
+    return reservations.filter((reservation) => {
+      const q = search.toLowerCase();
+      const matchesSearch =
+        reservation.studentName.toLowerCase().includes(q) ||
+        reservation.school.toLowerCase().includes(q) ||
+        reservation.whatsapp.toLowerCase().includes(q) ||
+        reservation.courseFormat.toLowerCase().includes(q);
+      const matchesGroup = groupFilter === "all" || reservation.level === groupFilter;
+      return matchesSearch && matchesGroup;
+    });
+  }, [groupFilter, reservations, search]);
+
+  async function refreshDashboard() {
+    const [statsResponse, reservationsResponse, settingsResponse] = await Promise.all([
+      fetch("/api/admin/stats"),
+      fetch("/api/admin/reservations"),
+      fetch("/api/admin/settings"),
+    ]);
+
+    if (statsResponse.ok) {
+      setStats((await statsResponse.json()) as DashboardStats);
+    }
+    if (reservationsResponse.ok) {
+      setReservations((await reservationsResponse.json()) as Reservation[]);
+    }
+    if (settingsResponse.ok) {
+      setSettings((await settingsResponse.json()) as SiteSettings);
+    }
+  }
+
+  useEffect(() => {
+    const interval = window.setInterval(async () => {
+      const response = await fetch(`/api/admin/reservations/latest?knownId=${latestId}`, { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as { reservation: Reservation | null; isNew: boolean };
+      if (payload.isNew && payload.reservation) {
+        toast.success(`Nouvelle réservation reçue pour ${payload.reservation.studentName}.`);
+
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("Nouvelle réservation", {
+            body: `${payload.reservation.studentName} - ${payload.reservation.level}`,
+          });
+        }
+
+        refreshDashboard().catch(() => null);
+      }
+    }, 12000);
+
+    return () => window.clearInterval(interval);
+  }, [latestId]);
+
+  async function handleDelete(id: number) {
+    const response = await fetch(`/api/admin/reservations/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      toast.error("Suppression impossible.");
+      return;
+    }
+
+    toast.success("Réservation supprimée.");
+    refreshDashboard().catch(() => null);
+  }
+
+  async function handleConfirm(reservation: Reservation) {
+    const response = await fetch(`/api/admin/reservations/${reservation.id}/confirm`, { method: "POST" });
+    if (!response.ok) {
+      toast.error("Confirmation impossible.");
+      return;
+    }
+
+    toast.success("Réservation confirmée.");
+    refreshDashboard().catch(() => null);
+  }
+
+  async function handleSaveSettings(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await saveSettings();
+  }
+
+  async function saveSettings() {
+
+    const response = await fetch("/api/admin/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+
+    if (!response.ok) {
+      toast.error("Mise à jour des paramètres impossible.");
+      return;
+    }
+
+    toast.success("Paramètres du centre enregistrés.");
+    refreshDashboard().catch(() => null);
+  }
+
+  async function handleLogout() {
+    const response = await fetch("/api/admin/logout", { method: "POST" });
+    if (response.ok) {
+      window.location.href = "/admin/login";
+    }
+  }
+
+  async function handleSaveReservation() {
+    if (!editForm || editingId === null) {
+      return;
+    }
+
+    const response = await fetch(`/api/admin/reservations/${editingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+
+    if (!response.ok) {
+      toast.error("Mise à jour impossible.");
+      return;
+    }
+
+    toast.success("Réservation mise à jour.");
+    setEditingId(null);
+    setEditForm(null);
+    refreshDashboard().catch(() => null);
+  }
+
+  function openWhatsapp(reservation: Reservation) {
+    const phone = normalizeMoroccanPhone(reservation.whatsapp);
+    if (!phone) {
+      toast.error("Numéro WhatsApp invalide.");
+      return;
+    }
+
+    const totalPrice = settings.formatPricing[reservation.courseFormat] ?? 0;
+    const priceLabel = getCoursePriceLabel(reservation.courseFormat, totalPrice);
+
+    const message = encodeURIComponent(
+      `Bonjour ${reservation.studentName} 👋✨\n\nVous êtes toujours intéressé(e) par notre offre spéciale 2ème bac ? 🚀\nUne place est disponible en ${reservation.courseFormat} dans le groupe ${reservation.level} 📚⚡\nTarif propose: ${priceLabel} 💸\n\nSi cela vous intéresse toujours, répondez-nous ici et on vous guide pour finaliser l'inscription ✅`,
+    );
+
+    window.open(`https://api.whatsapp.com/send/?phone=${phone}&text=${message}&type=phone_number&app_absent=0`, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <div className="space-y-8 lg:space-y-10">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-300">Panneau d’administration</p>
+          <h1 className="mt-2 font-heading text-3xl font-semibold text-white sm:text-4xl">Pilotage complet du centre</h1>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={() => {
+              if ("Notification" in window) {
+                Notification.requestPermission().catch(() => null);
+              }
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-medium text-white transition hover:bg-white/10"
+          >
+            <BellRing className="h-4 w-4 text-cyan-300" />
+            Activer notifications
+          </button>
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-medium text-white transition hover:bg-white/10"
+          >
+            <LogOut className="h-4 w-4 text-cyan-300" />
+            Déconnexion
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+        <StatCard label="Total réservations" value={String(stats.totalReservations)} />
+        <StatCard label="Réservations aujourd’hui" value={String(stats.todayReservations)} />
+        <StatCard label="Confirmées" value={String(stats.confirmedReservations)} />
+        <StatCard label="Bénéfices estimés" value={formatCurrency(stats.estimatedRevenue)} />
+      </div>
+
+      <nav className="sticky top-4 z-30 rounded-[1.5rem] border border-white/10 bg-brand-950/85 p-3 backdrop-blur">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <a href="#benefices" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10">
+            Bénéfices
+          </a>
+          <a href="#statistiques" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10">
+            Statistiques
+          </a>
+          <a href="#parametres" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10">
+            Paramètres
+          </a>
+          <a href="#reservations" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10">
+            Réservations
+          </a>
+        </div>
+      </nav>
+
+      <div className="grid gap-6 2xl:grid-cols-[0.9fr_0.9fr_1.2fr]">
+        <section id="benefices" className="rounded-[2rem] border border-white/10 bg-white/5 p-5 backdrop-blur sm:p-7">
+          <div className="flex items-center gap-3">
+            <Wallet className="h-6 w-6 text-cyan-300" />
+            <div>
+              <h2 className="text-2xl font-semibold text-white">Gestion bénéfices</h2>
+              <p className="text-sm text-slate-300">Tarifs entièrement modifiables. Calcul basé uniquement sur les réservations confirmées.</p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/10 p-4">
+              <p className="text-sm text-emerald-200">Revenu confirmé</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(stats.estimatedRevenue)}</p>
+            </div>
+            <div className="rounded-2xl border border-amber-400/15 bg-amber-400/10 p-4">
+              <p className="text-sm text-amber-100">Potentiel en attente</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(stats.pendingRevenue)}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-brand-950/40 p-4">
+            <h3 className="text-lg font-semibold text-white">Tarifs des cours</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Un seul prix par type de cours. Le meme tarif s'applique au bon et au mauvais niveau.
+            </p>
+            <div className="mt-4 space-y-4">
+              {settings.courseFormats.map((format) => (
+                <label key={format.id} className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-200">{format.label}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settings.formatPricing[format.id]}
+                    onChange={(event) =>
+                      setSettings((current) => ({
+                        ...current,
+                        formatPricing: {
+                          ...current.formatPricing,
+                          [format.id]: Number(event.target.value),
+                        },
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-white/10 bg-brand-950/60 px-4 py-3 text-white outline-none"
+                  />
+                  <span className="mt-2 block text-xs text-slate-400">
+                    {getCoursePriceLabel(format.id, settings.formatPricing[format.id])}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                saveSettings().catch(() => null);
+              }}
+              className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-cyan-400 px-5 py-4 font-semibold text-brand-950 transition hover:bg-cyan-300"
+            >
+              Enregistrer les tarifs
+            </button>
+          </div>
+        </section>
+
+        <section id="statistiques" className="rounded-[2rem] border border-white/10 bg-white/5 p-5 backdrop-blur sm:p-7">
+          <h2 className="text-2xl font-semibold text-white">Répartition des groupes</h2>
+          <div className="mt-6 grid gap-4">
+            {stats.levelBreakdown.map((item) => (
+              <div key={item.level} className="rounded-2xl border border-white/10 bg-brand-950/50 p-5">
+                <p className="text-sm text-slate-400">{item.level}</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{item.count}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-brand-950/40 p-4">
+            <h3 className="text-lg font-semibold text-white">Revenus par format</h3>
+            <div className="mt-4 space-y-3">
+              {stats.revenueByFormat.map((item) => (
+                <div key={item.format} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-slate-200">{item.format}</span>
+                    <span className="text-sm text-slate-400">{item.count} confirmé(s)</span>
+                  </div>
+                  <p className="mt-2 text-xl font-semibold text-white">{formatCurrency(item.revenue)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="parametres" className="rounded-[2rem] border border-white/10 bg-white/5 p-5 backdrop-blur sm:p-7">
+          <div className="flex items-center gap-3">
+            <Settings2 className="h-6 w-6 text-cyan-300" />
+            <div>
+              <h2 className="text-2xl font-semibold text-white">Paramètres du centre</h2>
+              <p className="text-sm text-slate-300">Modifiez la localisation et les formats de cours visibles sur le site.</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveSettings} className="mt-6 space-y-4">
+            <Field label="Nom du centre" value={settings.centerName} onChange={(value) => setSettings({ ...settings, centerName: value })} />
+            <Field label="Adresse du centre" value={settings.centerAddress} onChange={(value) => setSettings({ ...settings, centerAddress: value })} />
+            <Field label="Lien Google Maps" value={settings.mapsUrl} onChange={(value) => setSettings({ ...settings, mapsUrl: value })} />
+
+            <div className="rounded-2xl border border-white/10 bg-brand-950/40 p-4">
+              <div className="mb-3 flex items-center gap-2 text-white">
+                <MapPinned className="h-4 w-4 text-cyan-300" />
+                Formats de cours
+              </div>
+              <div className="space-y-3">
+                {settings.courseFormats.map((format, index) => (
+                  <div key={format.id} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <input
+                      value={format.label}
+                      onChange={(event) =>
+                        setSettings((current) => ({
+                          ...current,
+                          courseFormats: current.courseFormats.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, label: event.target.value } : item,
+                          ),
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-white/10 bg-brand-950/60 px-4 py-3 text-white outline-none"
+                    />
+                    <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={format.enabled}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            courseFormats: current.courseFormats.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, enabled: event.target.checked } : item,
+                            ),
+                          }))
+                        }
+                      />
+                      Actif
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-cyan-400 px-5 py-4 font-semibold text-brand-950 transition hover:bg-cyan-300">
+                Enregistrer les paramètres et tarifs
+              </button>
+              <a
+                href={settings.mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-4 font-medium text-white transition hover:bg-white/10"
+              >
+                <ExternalLink className="h-4 w-4 text-cyan-300" />
+                Ouvrir Maps
+              </a>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <section id="reservations" className="rounded-[2rem] border border-white/10 bg-white/5 p-5 backdrop-blur sm:p-7">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-white">Gestion réservations</h2>
+            <p className="mt-1 text-sm text-slate-300">Le panneau s’adapte mieux au mobile avec une vue cartes et des actions regroupées.</p>
+          </div>
+          <div className="flex flex-col gap-3 md:flex-row">
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Rechercher..."
+                className="w-full rounded-full border border-white/10 bg-brand-950/60 py-3 pl-10 pr-4 text-sm text-white outline-none md:w-72"
+              />
+            </label>
+            <select
+              value={groupFilter}
+              onChange={(event) => setGroupFilter(event.target.value as "all" | Reservation["level"])}
+              className="rounded-full border border-white/10 bg-brand-950/60 px-4 py-3 text-sm text-white outline-none"
+            >
+              <option value="all">Tous les groupes</option>
+              {SCHOOL_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => refreshDashboard().catch(() => null)}
+              className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Actualiser
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 hidden overflow-x-auto xl:block">
+          <table className="min-w-full border-separate border-spacing-y-3">
+            <thead>
+              <tr className="text-left text-sm text-slate-400">
+                <th className="px-4">Élève</th>
+                <th className="px-4">Groupe</th>
+                <th className="px-4">Format</th>
+                <th className="px-4">WhatsApp</th>
+                <th className="px-4">Statut</th>
+                <th className="px-4">Date</th>
+                <th className="px-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredReservations.map((reservation) => (
+                <tr key={reservation.id} className="bg-brand-950/60 text-sm text-slate-200">
+                  <td className="rounded-l-2xl px-4 py-4">
+                    <div className="font-semibold text-white">{reservation.studentName}</div>
+                    <div className="text-slate-400">{reservation.school}</div>
+                  </td>
+                  <td className="px-4 py-4">{reservation.level}</td>
+                  <td className="px-4 py-4">{reservation.courseFormat}</td>
+                  <td className="px-4 py-4">{reservation.whatsapp}</td>
+                  <td className="px-4 py-4">{statusBadge(reservation.status)}</td>
+                  <td className="px-4 py-4">{formatDate(reservation.createdAt)}</td>
+                  <td className="rounded-r-2xl px-4 py-4">
+                    <ActionButtons
+                      onEdit={() => {
+                        setEditForm({
+                          studentName: reservation.studentName,
+                          school: reservation.school,
+                          level: reservation.level,
+                          courseFormat: reservation.courseFormat,
+                          whatsapp: reservation.whatsapp,
+                          city: "",
+                          status: reservation.status,
+                        });
+                        setEditingId(reservation.id);
+                      }}
+                      onConfirm={() => handleConfirm(reservation)}
+                      onWhatsapp={() => openWhatsapp(reservation)}
+                      onDelete={() => handleDelete(reservation.id)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:hidden">
+          {filteredReservations.map((reservation) => (
+            <div key={reservation.id} className="rounded-[1.6rem] border border-white/10 bg-brand-950/60 p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-lg font-semibold text-white">{reservation.studentName}</p>
+                  <p className="text-sm text-slate-400">{reservation.school}</p>
+                </div>
+                {statusBadge(reservation.status)}
+              </div>
+
+              <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200 sm:grid-cols-2">
+                <div>Groupe: {reservation.level}</div>
+                <div>Format: {reservation.courseFormat}</div>
+                <div>WhatsApp: {reservation.whatsapp}</div>
+                <div>Date: {formatDate(reservation.createdAt)}</div>
+              </div>
+
+              <div className="mt-4">
+                <ActionButtons
+                  stacked
+                  onEdit={() => {
+                    setEditingId(reservation.id);
+                    setEditForm({
+                      studentName: reservation.studentName,
+                      school: reservation.school,
+                      level: reservation.level,
+                      courseFormat: reservation.courseFormat,
+                      whatsapp: reservation.whatsapp,
+                      city: "",
+                      status: reservation.status,
+                    });
+                  }}
+                  onConfirm={() => handleConfirm(reservation)}
+                  onWhatsapp={() => openWhatsapp(reservation)}
+                  onDelete={() => handleDelete(reservation.id)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {!filteredReservations.length ? (
+          <div className="mt-6 rounded-2xl border border-dashed border-white/10 px-5 py-12 text-center text-slate-400">
+            Aucune réservation trouvée avec ce filtre.
+          </div>
+        ) : null}
+      </section>
+
+      {editingId !== null && editForm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/80 p-4 backdrop-blur">
+          <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-[#071724] p-5 shadow-2xl sm:p-7">
+            <h3 className="text-2xl font-semibold text-white">Modifier la réservation</h3>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <Field label="Nom élève" value={editForm.studentName} onChange={(value) => setEditForm({ ...editForm, studentName: value })} />
+              <Field label="École" value={editForm.school} onChange={(value) => setEditForm({ ...editForm, school: value })} />
+              <Select
+                label="Groupe"
+                value={editForm.level}
+                items={SCHOOL_LEVELS.map((level) => ({ value: level, label: level }))}
+                onChange={(value) => setEditForm({ ...editForm, level: value as Reservation["level"] })}
+              />
+              <Select
+                label="Type de cours"
+                value={editForm.courseFormat}
+                items={enabledFormats.map((format) => ({ value: format.id, label: format.label }))}
+                onChange={(value) => setEditForm({ ...editForm, courseFormat: value as Reservation["courseFormat"] })}
+              />
+              <Field label="WhatsApp" value={editForm.whatsapp} onChange={(value) => setEditForm({ ...editForm, whatsapp: value })} />
+              <label className="block">
+                <span className="mb-2 block text-sm text-slate-200">Statut</span>
+                <select
+                  value={editForm.status}
+                  onChange={(event) => setEditForm({ ...editForm, status: event.target.value as Reservation["status"] })}
+                  className="w-full rounded-2xl border border-white/10 bg-brand-950/60 px-4 py-3 text-white outline-none"
+                >
+                  <option value="pending">En attente</option>
+                  <option value="confirmed">Confirmée</option>
+                </select>
+              </label>
+            </div>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => {
+                  setEditingId(null);
+                  setEditForm(null);
+                }}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 font-medium text-white transition hover:bg-white/10"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  startSavingReservation(() => {
+                    handleSaveReservation().catch(() => null);
+                  });
+                }}
+                disabled={isSavingReservation}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-cyan-400 px-5 py-3 font-semibold text-brand-950 transition hover:bg-cyan-300"
+              >
+                {isSavingReservation ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 backdrop-blur sm:p-6">
+      <p className="text-sm text-slate-400">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm text-slate-200">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-2xl border border-white/10 bg-brand-950/60 px-4 py-3 text-white outline-none"
+      />
+    </label>
+  );
+}
+
+function Select({
+  label,
+  value,
+  items,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  items: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm text-slate-200">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-2xl border border-white/10 bg-brand-950/60 px-4 py-3 text-white outline-none"
+      >
+        {items.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function statusBadge(status: Reservation["status"]) {
+  return (
+    <span
+      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+        status === "confirmed" ? "bg-emerald-400/15 text-emerald-300" : "bg-amber-400/15 text-amber-300"
+      }`}
+    >
+      {status === "confirmed" ? "Confirmée" : "En attente"}
+    </span>
+  );
+}
+
+function ActionButtons({
+  stacked = false,
+  onEdit,
+  onConfirm,
+  onWhatsapp,
+  onDelete,
+}: {
+  stacked?: boolean;
+  onEdit: () => void;
+  onConfirm: () => void;
+  onWhatsapp: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className={`flex ${stacked ? "flex-col sm:flex-row" : "flex-wrap"} gap-2`}>
+      <button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10">
+        <Pencil className="h-4 w-4" />
+        Modifier
+      </button>
+      <button onClick={onConfirm} className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-emerald-200 transition hover:bg-emerald-400/15">
+        <Check className="h-4 w-4" />
+        Confirmer l'eleve
+      </button>
+      <button onClick={onWhatsapp} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-cyan-100 transition hover:bg-cyan-400/15">
+        WhatsApp
+      </button>
+      <button onClick={onDelete} className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-rose-200 transition hover:bg-rose-400/15">
+        <Trash2 className="h-4 w-4" />
+        Supprimer
+      </button>
+    </div>
+  );
+}

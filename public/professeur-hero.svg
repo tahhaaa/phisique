@@ -1,0 +1,27 @@
+<svg width="900" height="1100" viewBox="0 0 900 1100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="1100" fill="#06131F"/>
+  <circle cx="680" cy="202" r="196" fill="#22D3EE" fill-opacity="0.18"/>
+  <circle cx="222" cy="919" r="210" fill="#0EA5E9" fill-opacity="0.16"/>
+  <rect x="83" y="95" width="734" height="910" rx="42" fill="url(#paint0_linear)"/>
+  <path d="M449.5 283C530.41 283 596 348.59 596 429.5C596 510.41 530.41 576 449.5 576C368.59 576 303 510.41 303 429.5C303 348.59 368.59 283 449.5 283Z" fill="#D6F4FB"/>
+  <path d="M270 865C270 724.72 383.72 611 524 611H376C516.28 611 630 724.72 630 865V919H270V865Z" fill="#D6F4FB"/>
+  <rect x="244" y="600" width="414" height="279" rx="52" fill="#0C2B3D"/>
+  <path d="M363 431C363 383.503 401.503 345 449 345H450C497.497 345 536 383.503 536 431V513H363V431Z" fill="#0F3146"/>
+  <path d="M381 215H523V282C523 321.765 490.765 354 451 354H453C413.235 354 381 321.765 381 282V215Z" fill="#F1DACB"/>
+  <path d="M346 217C346 152.383 398.383 100 463 100C527.617 100 580 152.383 580 217V226C580 290.617 527.617 343 463 343C398.383 343 346 290.617 346 226V217Z" fill="#F5E1D2"/>
+  <path d="M337 216C337 135.366 402.366 70 483 70C563.634 70 629 135.366 629 216V232L590 211L575 161L537 143L499 146L435 185L386 225L337 254V216Z" fill="#0B2434"/>
+  <rect x="170" y="120" width="138" height="138" rx="32" fill="#0F3146"/>
+  <path d="M222 157H255V190H288V224H255V257H222V224H189V190H222V157Z" fill="#22D3EE"/>
+  <rect x="595" y="726" width="154" height="154" rx="32" fill="#0F3146"/>
+  <path d="M652 802C652 784.327 666.327 770 684 770C701.673 770 716 784.327 716 802C716 819.673 701.673 834 684 834C666.327 834 652 819.673 652 802Z" fill="#22D3EE"/>
+  <path d="M684 742V706" stroke="#22D3EE" stroke-width="18" stroke-linecap="round"/>
+  <path d="M684 898V862" stroke="#22D3EE" stroke-width="18" stroke-linecap="round"/>
+  <path d="M744 802H708" stroke="#22D3EE" stroke-width="18" stroke-linecap="round"/>
+  <path d="M660 802H624" stroke="#22D3EE" stroke-width="18" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="paint0_linear" x1="450" y1="95" x2="450" y2="1005" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#123349"/>
+      <stop offset="1" stop-color="#071C2B"/>
+    </linearGradient>
+  </defs>
+</svg>

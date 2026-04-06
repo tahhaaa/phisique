@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 26%),
+    linear-gradient(180deg, #05131e 0%, #081a27 44%, #07131d 100%);
+  color: #f8fafc;
+  font-family: var(--font-manrope), sans-serif;
+}
+
+.font-heading {
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-variation-settings: "wght" 650;
+}
+
+@keyframes orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbitReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: translateX(-12px) scaleX(0.92);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateX(12px) scaleX(1.08);
+    opacity: 0.85;
+  }
+}
+
+@keyframes floatPhysics {
+  0%, 100% {
+    transform: translateY(0px);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-12px);
+    opacity: 0.75;
+  }
+}
+
+.animate-orbit {
+  animation: orbit 10s linear infinite;
+}
+
+.animate-orbitReverse {
+  animation: orbitReverse 10s linear infinite;
+}
+
+.animate-wave {
+  animation: wave 4.5s ease-in-out infinite;
+}
+
+.animate-floatPhysics {
+  animation: floatPhysics 6s ease-in-out infinite;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.25);
+}
