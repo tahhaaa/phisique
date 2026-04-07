@@ -14,14 +14,19 @@ export const metadata: Metadata = {
 
 export default async function AdminPage() {
   await requireAdminSession();
+  const [initialReservations, initialStats, initialSettings] = await Promise.all([
+    getReservations(),
+    getDashboardStats(),
+    getSiteSettings(),
+  ]);
 
   return (
     <main className="min-h-screen px-6 py-16 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <AdminDashboard
-          initialReservations={getReservations()}
-          initialStats={getDashboardStats()}
-          initialSettings={getSiteSettings()}
+          initialReservations={initialReservations}
+          initialStats={initialStats}
+          initialSettings={initialSettings}
         />
       </div>
     </main>

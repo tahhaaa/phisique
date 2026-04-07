@@ -16,6 +16,7 @@ const baseInitialForm = {
   level: SCHOOL_LEVELS[0],
   courseFormat: "Cours collectif mini groupe",
   whatsapp: "",
+  city: "",
 };
 
 export function ReservationForm({ courseFormats }: ReservationFormProps) {
@@ -36,28 +37,32 @@ export function ReservationForm({ courseFormats }: ReservationFormProps) {
     event.preventDefault();
 
     startTransition(async () => {
-      const response = await fetch("/api/reservations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
+      try {
+        const response = await fetch("/api/reservations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(form),
+        });
 
-      const payload = (await response.json()) as { errors?: Record<string, string>; message?: string };
+        const payload = (await response.json()) as { errors?: Record<string, string>; message?: string };
 
-      if (!response.ok) {
-        setErrors(payload.errors ?? {});
-        toast.error(payload.message ?? "Impossible d’envoyer la réservation.");
-        return;
+        if (!response.ok) {
+          setErrors(payload.errors ?? {});
+          toast.error(payload.message ?? "Impossible d’envoyer la réservation.");
+          return;
+        }
+
+        setForm({
+          ...baseInitialForm,
+          courseFormat: availableFormats[0]?.id ?? baseInitialForm.courseFormat,
+        });
+        setErrors({});
+        toast.success("Votre réservation a bien été envoyée.");
+      } catch {
+        toast.error("Connexion impossible. Vérifiez votre réseau puis réessayez.");
       }
-
-      setForm({
-        ...baseInitialForm,
-        courseFormat: availableFormats[0]?.id ?? baseInitialForm.courseFormat,
-      });
-      setErrors({});
-      toast.success("Votre réservation a bien été envoyée.");
     });
   }
 
@@ -97,7 +102,15 @@ export function ReservationForm({ courseFormats }: ReservationFormProps) {
           label="Numéro WhatsApp"
           value={form.whatsapp}
           error={errors.whatsapp}
+          placeholder="Ex: 0622222430"
           onChange={(value) => setField("whatsapp", value)}
+        />
+        <Field
+          label="Ville"
+          value={form.city}
+          error={errors.city}
+          placeholder="Ex: Casablanca"
+          onChange={(value) => setField("city", value)}
         />
       </div>
 
@@ -117,11 +130,13 @@ function Field({
   label,
   value,
   error,
+  placeholder,
   onChange,
 }: {
   label: string;
   value: string;
   error?: string;
+  placeholder?: string;
   onChange: (value: string) => void;
 }) {
   return (
@@ -129,6 +144,7 @@ function Field({
       <span className="mb-2 block text-sm font-medium text-slate-200">{label}</span>
       <input
         value={value}
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-2xl border border-white/10 bg-brand-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/60"
       />

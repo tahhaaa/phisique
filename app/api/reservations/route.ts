@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/api-error";
 import { createReservation } from "@/lib/db";
 import { reservationSchema } from "@/lib/validation";
 
@@ -18,15 +19,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const reservation = createReservation({
-    ...parsed.data,
-    city: "",
-  });
-  return NextResponse.json(
-    {
-      message: "Réservation enregistrée avec succès.",
-      reservation,
-    },
-    { status: 201 },
-  );
+  try {
+    const reservation = await createReservation(parsed.data);
+    return NextResponse.json(
+      {
+        message: "Réservation enregistrée avec succès.",
+        reservation,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, "Impossible d'enregistrer la réservation.") }, { status: 500 });
+  }
 }

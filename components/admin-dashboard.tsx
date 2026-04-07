@@ -37,6 +37,7 @@ export function AdminDashboard({
       const matchesSearch =
         reservation.studentName.toLowerCase().includes(q) ||
         reservation.school.toLowerCase().includes(q) ||
+        reservation.city.toLowerCase().includes(q) ||
         reservation.whatsapp.toLowerCase().includes(q) ||
         reservation.courseFormat.toLowerCase().includes(q);
       const matchesGroup = groupFilter === "all" || reservation.level === groupFilter;
@@ -45,20 +46,22 @@ export function AdminDashboard({
   }, [groupFilter, reservations, search]);
 
   async function refreshDashboard() {
-    const [statsResponse, reservationsResponse, settingsResponse] = await Promise.all([
-      fetch("/api/admin/stats"),
-      fetch("/api/admin/reservations"),
-      fetch("/api/admin/settings"),
-    ]);
+    try {
+      const [statsResponse, reservationsResponse, settingsResponse] = await Promise.all([
+        fetch("/api/admin/stats", { cache: "no-store" }),
+        fetch("/api/admin/reservations", { cache: "no-store" }),
+        fetch("/api/admin/settings", { cache: "no-store" }),
+      ]);
 
-    if (statsResponse.ok) {
+      if (!statsResponse.ok || !reservationsResponse.ok || !settingsResponse.ok) {
+        throw new Error("refresh");
+      }
+
       setStats((await statsResponse.json()) as DashboardStats);
-    }
-    if (reservationsResponse.ok) {
       setReservations((await reservationsResponse.json()) as Reservation[]);
-    }
-    if (settingsResponse.ok) {
       setSettings((await settingsResponse.json()) as SiteSettings);
+    } catch {
+      toast.error("Actualisation impossible pour le moment.");
     }
   }
 
@@ -79,7 +82,7 @@ export function AdminDashboard({
           });
         }
 
-        refreshDashboard().catch(() => null);
+        refreshDashboard();
       }
     }, 12000);
 
@@ -87,25 +90,35 @@ export function AdminDashboard({
   }, [latestId]);
 
   async function handleDelete(id: number) {
-    const response = await fetch(`/api/admin/reservations/${id}`, { method: "DELETE" });
-    if (!response.ok) {
-      toast.error("Suppression impossible.");
-      return;
-    }
+    try {
+      const response = await fetch(`/api/admin/reservations/${id}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) {
+        toast.error(payload.message ?? "Suppression impossible.");
+        return;
+      }
 
-    toast.success("Réservation supprimée.");
-    refreshDashboard().catch(() => null);
+      toast.success("Réservation supprimée.");
+      await refreshDashboard();
+    } catch {
+      toast.error("Suppression impossible.");
+    }
   }
 
   async function handleConfirm(reservation: Reservation) {
-    const response = await fetch(`/api/admin/reservations/${reservation.id}/confirm`, { method: "POST" });
-    if (!response.ok) {
-      toast.error("Confirmation impossible.");
-      return;
-    }
+    try {
+      const response = await fetch(`/api/admin/reservations/${reservation.id}/confirm`, { method: "POST" });
+      const payload = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) {
+        toast.error(payload.message ?? "Confirmation impossible.");
+        return;
+      }
 
-    toast.success("Réservation confirmée.");
-    refreshDashboard().catch(() => null);
+      toast.success("Réservation confirmée.");
+      await refreshDashboard();
+    } catch {
+      toast.error("Confirmation impossible.");
+    }
   }
 
   async function handleSaveSettings(event: React.FormEvent<HTMLFormElement>) {
@@ -114,26 +127,36 @@ export function AdminDashboard({
   }
 
   async function saveSettings() {
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { message?: string };
 
-    const response = await fetch("/api/admin/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
+      if (!response.ok) {
+        toast.error(payload.message ?? "Mise à jour des paramètres impossible.");
+        return;
+      }
 
-    if (!response.ok) {
+      toast.success("Paramètres du centre enregistrés.");
+      await refreshDashboard();
+    } catch {
       toast.error("Mise à jour des paramètres impossible.");
-      return;
     }
-
-    toast.success("Paramètres du centre enregistrés.");
-    refreshDashboard().catch(() => null);
   }
 
   async function handleLogout() {
-    const response = await fetch("/api/admin/logout", { method: "POST" });
-    if (response.ok) {
-      window.location.href = "/admin/login";
+    try {
+      const response = await fetch("/api/admin/logout", { method: "POST" });
+      if (response.ok) {
+        window.location.href = "/admin/login";
+        return;
+      }
+      toast.error("Déconnexion impossible.");
+    } catch {
+      toast.error("Déconnexion impossible.");
     }
   }
 
@@ -142,21 +165,26 @@ export function AdminDashboard({
       return;
     }
 
-    const response = await fetch(`/api/admin/reservations/${editingId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
-    });
+    try {
+      const response = await fetch(`/api/admin/reservations/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { message?: string };
 
-    if (!response.ok) {
+      if (!response.ok) {
+        toast.error(payload.message ?? "Mise à jour impossible.");
+        return;
+      }
+
+      toast.success("Réservation mise à jour.");
+      setEditingId(null);
+      setEditForm(null);
+      await refreshDashboard();
+    } catch {
       toast.error("Mise à jour impossible.");
-      return;
     }
-
-    toast.success("Réservation mise à jour.");
-    setEditingId(null);
-    setEditForm(null);
-    refreshDashboard().catch(() => null);
   }
 
   function openWhatsapp(reservation: Reservation) {
@@ -186,7 +214,7 @@ export function AdminDashboard({
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             onClick={() => {
-              if ("Notification" in window) {
+              if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().catch(() => null);
               }
             }}
@@ -447,6 +475,7 @@ export function AdminDashboard({
                   <td className="rounded-l-2xl px-4 py-4">
                     <div className="font-semibold text-white">{reservation.studentName}</div>
                     <div className="text-slate-400">{reservation.school}</div>
+                    <div className="text-slate-400">{reservation.city}</div>
                   </td>
                   <td className="px-4 py-4">{reservation.level}</td>
                   <td className="px-4 py-4">{reservation.courseFormat}</td>
@@ -462,7 +491,7 @@ export function AdminDashboard({
                           level: reservation.level,
                           courseFormat: reservation.courseFormat,
                           whatsapp: reservation.whatsapp,
-                          city: "",
+                          city: reservation.city,
                           status: reservation.status,
                         });
                         setEditingId(reservation.id);
@@ -485,6 +514,7 @@ export function AdminDashboard({
                 <div>
                   <p className="text-lg font-semibold text-white">{reservation.studentName}</p>
                   <p className="text-sm text-slate-400">{reservation.school}</p>
+                  <p className="text-sm text-slate-400">{reservation.city}</p>
                 </div>
                 {statusBadge(reservation.status)}
               </div>
@@ -507,7 +537,7 @@ export function AdminDashboard({
                       level: reservation.level,
                       courseFormat: reservation.courseFormat,
                       whatsapp: reservation.whatsapp,
-                      city: "",
+                      city: reservation.city,
                       status: reservation.status,
                     });
                   }}
@@ -547,6 +577,7 @@ export function AdminDashboard({
                 onChange={(value) => setEditForm({ ...editForm, courseFormat: value as Reservation["courseFormat"] })}
               />
               <Field label="WhatsApp" value={editForm.whatsapp} onChange={(value) => setEditForm({ ...editForm, whatsapp: value })} />
+              <Field label="Ville" value={editForm.city} onChange={(value) => setEditForm({ ...editForm, city: value })} />
               <label className="block">
                 <span className="mb-2 block text-sm text-slate-200">Statut</span>
                 <select

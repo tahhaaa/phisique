@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/api-error";
 import { requireAdminSession } from "@/lib/auth";
 import { deleteReservation, updateReservation } from "@/lib/db";
 import { reservationUpdateSchema } from "@/lib/validation";
@@ -13,16 +14,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ message: "Réservation invalide." }, { status: 400 });
   }
 
-  const reservation = updateReservation(Number(id), {
-    ...parsed.data,
-    city: "",
-  });
-  return NextResponse.json(reservation);
+  try {
+    const reservation = await updateReservation(Number(id), parsed.data);
+    return NextResponse.json(reservation);
+  } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, "Mise à jour impossible.") }, { status: 500 });
+  }
 }
 
 export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
   await requireAdminSession();
   const { id } = await context.params;
-  deleteReservation(Number(id));
-  return NextResponse.json({ success: true });
+  try {
+    await deleteReservation(Number(id));
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, "Suppression impossible.") }, { status: 500 });
+  }
 }

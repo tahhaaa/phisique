@@ -9,8 +9,10 @@ export const metadata: Metadata = {
   description: "Réservez votre place dans le programme spécial 2ème bac.",
 };
 
-export default function ReservationPage() {
-  const settings = getSiteSettings();
+export const dynamic = "force-dynamic";
+
+export default async function ReservationPage() {
+  const settings = await getSiteSettings();
   const enabledFormats = settings.courseFormats.filter((format) => format.enabled);
 
   return (
@@ -32,7 +34,7 @@ export default function ReservationPage() {
             <div className="rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur">
               <h2 className="text-xl font-semibold text-white">Ce qui se passe après votre envoi</h2>
               <ul className="mt-4 space-y-3 text-slate-300">
-                <li>Votre demande est enregistrée automatiquement dans la base locale.</li>
+                <li>Votre demande est enregistrée automatiquement dans la base de données.</li>
                 <li>L’administrateur la classe dans le bon groupe 2ème bac.</li>
                 <li>Le suivi et la relance peuvent se faire directement via WhatsApp.</li>
               </ul>
